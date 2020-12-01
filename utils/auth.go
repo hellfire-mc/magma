@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// AuthDigest generates the authentication digest for the server.
 func AuthDigest(serverID string, sharedSecret, publicKey []byte) string {
 	h := sha1.New()
 	h.Write([]byte(serverID))

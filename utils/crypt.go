@@ -1,4 +1,4 @@
-package protocol
+package utils
 
 import (
 	"crypto/aes"
@@ -6,7 +6,7 @@ import (
 	"github.com/Tnze/go-mc/net/CFB8"
 )
 
-func newSymmetricEncryption(key []byte) (encoStream, decoStream cipher.Stream) {
+func NewSymmetricEncryption(key []byte) (encoStream, decoStream cipher.Stream) {
 	b, err := aes.NewCipher(key)
 	if err != nil {
 		panic("Unable to generate new cipher")

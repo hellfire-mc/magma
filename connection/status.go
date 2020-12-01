@@ -1,4 +1,4 @@
-package protocol
+package connection
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func (c *Connection) handleStatusState(input *packet.Packet) {
+func (c *Incoming) handleStatusState(input *packet.Packet) {
 	switch input.ID {
 	case 0x00:
 		c.handleStatus(input)
@@ -17,7 +17,7 @@ func (c *Connection) handleStatusState(input *packet.Packet) {
 	}
 }
 
-func (c *Connection) handleStatus(input *packet.Packet) {
+func (c *Incoming) handleStatus(input *packet.Packet) {
 	// Send server status
 	out, err := json.Marshal(&models.ServerStatus{
 		Version: models.Version{
@@ -25,12 +25,12 @@ func (c *Connection) handleStatus(input *packet.Packet) {
 			Protocol: constants.MCProtocol,
 		},
 		Players: models.Players{
-			Max:    viper.GetInt("connection.maxPlayers"),
-			Online: len(c.cm.players),
+			Max:    viper.GetInt("server.maxPlayers"),
+			Online: c.CM.GetServerCount(),
 			Sample: nil,
 		},
 		Description: models.Description{
-			Text: viper.GetString("info.motd"),
+			Text: viper.GetString("server.motd"),
 		},
 		// Favicon: c.cm.serverIcon,
 	})
@@ -38,20 +38,20 @@ func (c *Connection) handleStatus(input *packet.Packet) {
 		return
 	}
 
-	c.conn.WritePacket(packet.Marshal(
+	c.Incoming.WritePacket(packet.Marshal(
 		0x0,
 		packet.String(string(out)),
 	))
 }
 
-func (c *Connection) handlePing(input *packet.Packet) {
+func (c *Incoming) handlePing(input *packet.Packet) {
 	var payload packet.Long
 	err := input.Scan(&payload)
 	if err != nil {
 		return
 	}
 
-	c.conn.WritePacket(packet.Marshal(
+	c.Incoming.WritePacket(packet.Marshal(
 		0x01,
 		payload,
 	))

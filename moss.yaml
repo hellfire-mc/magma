@@ -1,0 +1,10 @@
+listener:
+  host: localhost
+  port: 25565
+proxy:
+  host: 10.69.69.2
+  port: 25565
+server:
+  fake_players: -1
+  max_players: 100
+  motd: Just another Mossball proxy!

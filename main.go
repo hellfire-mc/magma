@@ -7,9 +7,9 @@ import (
 	"github.com/Tnze/go-mc/net"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/skyezerfox/moss/connection"
 	"github.com/skyezerfox/moss/constants"
 	"github.com/skyezerfox/moss/models"
-	"github.com/skyezerfox/moss/protocol"
 	"github.com/skyezerfox/moss/utils"
 	"github.com/spf13/viper"
 	"os"
@@ -18,19 +18,19 @@ import (
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("toml")
+	viper.SetConfigName("moss")
+	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 
-	viper.SetDefault("connection.address", "127.0.0.1")
-	viper.SetDefault("connection.port", 25565)
-	viper.SetDefault("connection.maxPlayers", 150)
+	viper.SetDefault("listener.host", "localhost")
+	viper.SetDefault("listener.port", 25565)
 
-	viper.SetDefault("info.motd", "Just a GoLang Minecraft Server")
-	viper.SetDefault("info.serverIcon", "icon.jpg")
+	viper.SetDefault("server.max_players", 100)
+	viper.SetDefault("server.fake_players", -1)
+	viper.SetDefault("server.motd", "Just another Mossball proxy!")
 
-	viper.SetDefault("servers.lobby.host", "127.0.0.1")
-	viper.SetDefault("servers.lobby.port", 25566)
+	viper.SetDefault("proxy.host", "localhost")
+	viper.SetDefault("proxy.port", 25566)
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -44,18 +44,14 @@ func init() {
 			os.Exit(1)
 		}
 	}
-
-	// deregister defaults so they don't accidentally existcm := protocol.NewConnectionManager(encryptionKey)
-	viper.SetDefault("servers.lobby.host", nil)
-	viper.SetDefault("servers.lobby.port", nil)
 }
 
 func main() {
-	log.Info().Int("port", viper.GetInt("connection.port")).Msg("Starting proxy server...")
+	log.Info().Int("port", viper.GetInt("listener.port")).Msg("Starting proxy server...")
 
-	listener, err := net.ListenMC(fmt.Sprintf(":%d", viper.GetInt("connection.port")))
+	listener, err := net.ListenMC(fmt.Sprintf(":%d", viper.GetInt("listener.port")))
 	if err != nil {
-		log.Fatal().Msg(fmt.Sprintf("Unable to listen on port %d", viper.GetInt("connection.port")))
+		log.Fatal().Msg(fmt.Sprintf("Unable to listen on port %d", viper.GetInt("listener.port")))
 	}
 
 	log.Debug().Msg("Generating encryption key pair...")
@@ -66,7 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cm := protocol.NewConnectionManager(utils.RandString(16), encryptionKey)
+	cm := connection.NewConnectionManager(utils.RandString(16), encryptionKey)
 
 	// read server configuration
 	for k, s := range viper.GetStringMap("servers") {
