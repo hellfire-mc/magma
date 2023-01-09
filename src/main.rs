@@ -1,3 +1,7 @@
+mod client;
+mod config;
+mod cryptor;
+
 use std::net::SocketAddr;
 
 use anyhow::{bail, Context, Result};
@@ -127,6 +131,15 @@ trait ProcotolWriteExt: AsyncWrite {
             .context("failed to write string length")?;
         let buf = value.as_bytes();
         self.write_all(buf).await.context("failed to write string")
+    }
+
+    async fn write_packet(&mut self, value: &Vec<u8>) -> Result<()>
+    where
+        Self: Unpin,
+    {
+        self.write_var_int(value.len() as i32).await?;
+        self.write_all(value).await?;
+        Ok(())
     }
 }
 
@@ -260,6 +273,9 @@ async fn handle_login(stream: &mut TcpStream) -> Result<()> {
 
 #[tokio::main]
 async fn main() {
+    // initialize logging
+    tracing_subscriber::fmt().init();
+
     let addr: SocketAddr = "127.0.0.1:25565"
         .parse()
         .context("failed to parse socket address")
@@ -268,7 +284,7 @@ async fn main() {
 
     loop {
         match listener.accept().await {
-            Ok((mut stream, socket)) => {
+            Ok((mut stream, _)) => {
                 tokio::task::spawn(async move {
                     let res = handle_connection(&mut stream, addr).await;
                     if let Err(err) = res {
