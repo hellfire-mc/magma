@@ -11,6 +11,7 @@ cfb8 = "0.8"
 clap = { version = "4", features = ["derive"] }
 mc_chat = "0.3"
 minecraft-data-rs = "0.7"
+miniz_oxide = "0.6"
 rand = "0.8"
 rsa = "0.7"
 serde = { version = "1", features = ["derive"] }

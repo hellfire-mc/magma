@@ -2,8 +2,12 @@
 
 use std::io::Cursor;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
+use miniz_oxide::{
+    deflate::compress_to_vec_zlib,
+    inflate::{decompress_to_vec_zlib, decompress_to_vec_zlib_with_limit},
+};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 static SEGMENT_BITS: u8 = 0x7F;
@@ -96,6 +100,25 @@ pub trait ProtocolReadExt: AsyncRead {
         let buf = vec![0u8; len - var_int_length(packet_id)];
         Ok(Cursor::new(buf))
     }
+
+    async fn read_packet_compressed(&mut self) -> Result<Cursor<Vec<u8>>>
+    where
+        Self: Unpin,
+    {
+        let len = self.read_var_int().await?;
+        let data_len = self.read_var_int().await?;
+        // read packet data
+        let mut buf = Vec::with_capacity(len as usize);
+        self.read_exact(&mut buf);
+        // packet is uncompressed
+        if data_len == 0 {
+            return Ok(Cursor::new(buf));
+        }
+        // decompress data
+        let buf =
+            decompress_to_vec_zlib(&mut buf).map_err(|e| anyhow!("failed to decompress packet"))?;
+        Ok(Cursor::new(buf))
+    }
 }
 
 #[async_trait]
@@ -158,6 +181,17 @@ pub trait ProcotolWriteExt: AsyncWrite {
     {
         self.write_var_int(value.len() as i32).await?;
         self.write_all(value).await?;
+        Ok(())
+    }
+
+    async fn write_packet_compressed(&mut self, value: &Vec<u8>) -> Result<()>
+    where
+        Self: Unpin,
+    {
+        let mut buf = compress_to_vec_zlib(&value, 10);
+        self.write_var_int(buf.len() as i32);
+        self.write_var_int(value.len() as i32);
+        self.write_all(&buf).await?;
         Ok(())
     }
 }

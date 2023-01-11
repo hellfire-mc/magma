@@ -4,13 +4,10 @@ use std::{net::SocketAddr, time::Duration};
 
 use anyhow::{Context, Error};
 use mc_chat::TextComponent;
-use tokio::{
-    net::{TcpListener, TcpStream},
-    task::JoinHandle,
-};
+use tokio::{net::TcpListener, task::JoinHandle};
 use tracing::{debug, warn};
 
-use crate::{client::Client, Bridge};
+use crate::Bridge;
 
 pub struct ProxyServerConfig {
     /// The binding address of the server.
