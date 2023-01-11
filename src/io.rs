@@ -1,11 +1,28 @@
 //! Defines IO extension traits for reading from streams.
 
+use std::io::Cursor;
+
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 static SEGMENT_BITS: u8 = 0x7F;
 static CONTINUE_BIT: u8 = 0x80;
+
+fn var_int_length(mut x: i32) -> usize {
+    let size = 0;
+    loop {
+        x >>= 7;
+        if x != 0 {
+            size += 1;
+        }
+        if x == 0 {
+            break;
+        }
+    }
+
+    size
+}
 
 #[async_trait]
 pub trait ProtocolReadExt: AsyncRead {
@@ -68,6 +85,16 @@ pub trait ProtocolReadExt: AsyncRead {
             .await
             .context("failed to read string bytes")?;
         String::from_utf8(buf).context("failed to decode string bytes")
+    }
+
+    async fn read_packet(&mut self) -> Result<Cursor<Vec<u8>>>
+    where
+        Self: Unpin,
+    {
+        let len = self.read_var_int().await? as usize;
+        let packet_id = self.read_var_int().await?;
+        let buf = vec![0u8; len - var_int_length(packet_id)];
+        Ok(Cursor::new(buf))
     }
 }
 

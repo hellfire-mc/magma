@@ -1,9 +1,10 @@
+mod bridge;
 mod client;
 mod config;
 mod cryptor;
 mod io;
 mod protocol;
-mod server;
+mod proxy;
 
 use std::{env, net::SocketAddr, path::PathBuf};
 

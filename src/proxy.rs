@@ -10,18 +10,18 @@ use tokio::{
 };
 use tracing::{debug, warn};
 
-use crate::client::Client;
+use crate::{client::Client, Bridge};
 
-pub struct ServerConfig {
+pub struct ProxyServerConfig {
     /// The binding address of the server.
     pub listen_addr: SocketAddr,
     /// A list of routes this server uses.
-    pub routes: Vec<ServerRoute>,
+    pub routes: Vec<ProxyServerRoute>,
     /// The fallback method this server uses.
     pub fallback_method: FallbackMethod,
 }
 
-impl Default for ServerConfig {
+impl Default for ProxyServerConfig {
     fn default() -> Self {
         Self {
             listen_addr: "127.0.0.1:25565".parse().unwrap(),
@@ -32,7 +32,7 @@ impl Default for ServerConfig {
 }
 
 /// A server route configuration.
-pub struct ServerRoute {
+pub struct ProxyServerRoute {
     /// Where the server should accept connections from.
     pub from: String,
     /// Where the server should proxy connections to.
@@ -49,12 +49,12 @@ pub enum FallbackMethod {
 }
 
 /// A proxy server.
-pub struct Server {
-    config: ServerConfig,
-    clients: Vec<ServerClient>,
+pub struct ProxyServer {
+    config: ProxyServerConfig,
+    clients: Vec<Bridge>,
 }
 
-impl Server {
+impl ProxyServer {
     /// Consume this server instance and spawn a Tokio task that handles connections.
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::task::spawn(async move {
@@ -98,18 +98,4 @@ impl Server {
             debug!("New connection from {:?}", remote_addr);
         }
     }
-}
-
-/// A client connected to a server instance.
-enum ServerClient {
-    Partial {
-        remote_addr: SocketAddr,
-        remote_stream: TcpStream,
-    },
-    Proxied {
-        remote_addr: SocketAddr,
-        remote_stream: TcpStream,
-        proxy_target: SocketAddr,
-        proxy_client: Client,
-    },
 }
