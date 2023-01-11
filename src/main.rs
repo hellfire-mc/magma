@@ -1,151 +1,26 @@
 mod client;
 mod config;
 mod cryptor;
+mod io;
+mod protocol;
+mod server;
 
-use std::net::SocketAddr;
+use std::{env, net::SocketAddr, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
-use async_trait::async_trait;
+use clap::Parser;
+use io::ProtocolReadExt;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+use tracing::{debug, error, info, trace};
+use tracing_subscriber::{
+    fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter,
+};
 
-static SEGMENT_BITS: u8 = 0x7F;
-static CONTINUE_BIT: u8 = 0x80;
-
-#[async_trait]
-trait ProtocolReadExt: AsyncRead {
-    async fn read_var_int(&mut self) -> Result<i32>
-    where
-        Self: Unpin,
-    {
-        let mut num_read = 0;
-        let mut result = 0;
-
-        loop {
-            let read = self.read_u8().await?;
-            let value = i32::from(read & 0b0111_1111);
-            result |= value.overflowing_shl(7 * num_read).0;
-
-            num_read += 1;
-
-            if num_read > 5 {
-                bail!("VarInt too long (max length: 5)");
-            }
-            if read & 0b1000_0000 == 0 {
-                break;
-            }
-        }
-
-        Ok(result)
-    }
-
-    async fn read_var_long(&mut self) -> Result<u64>
-    where
-        Self: Unpin,
-    {
-        let mut value = 0;
-        let mut position = 0;
-        let mut current_byte: u8;
-
-        loop {
-            current_byte = self.read_u8().await.context("failed to read byte")?;
-            value |= ((current_byte & SEGMENT_BITS) as u64) << position;
-
-            if (current_byte & CONTINUE_BIT) == 0 {
-                break Ok(value);
-            }
-
-            position += 7;
-
-            if position >= 64 {
-                bail!("VarInt exceeded maximum length");
-            }
-        }
-    }
-
-    async fn read_string(&mut self) -> Result<String>
-    where
-        Self: Unpin,
-    {
-        let len = self.read_var_int().await? as usize;
-        let mut buf = vec![0u8; len];
-        self.read_exact(&mut buf)
-            .await
-            .context("failed to read string bytes")?;
-        String::from_utf8(buf).context("failed to decode string bytes")
-    }
-}
-
-#[async_trait]
-trait ProcotolWriteExt: AsyncWrite {
-    async fn write_var_int(&mut self, value: i32) -> Result<()>
-    where
-        Self: Unpin,
-    {
-        let mut x = value as u32;
-        loop {
-            let mut temp = (x & 0b0111_1111) as u8;
-            x >>= 7;
-            if x != 0 {
-                temp |= 0b1000_0000;
-            }
-            self.write_all(&[temp]).await?;
-            if x == 0 {
-                break;
-            }
-        }
-        Ok(())
-    }
-
-    async fn write_var_long(&mut self, mut value: i64) -> Result<()>
-    where
-        Self: Unpin,
-    {
-        let mut x = value as u64;
-        loop {
-            let mut temp = (x & 0b0111_1111) as u8;
-            x >>= 7;
-            if x != 0 {
-                temp |= 0b1000_0000;
-            }
-
-            self.write_u8(temp).await?;
-
-            if x == 0 {
-                break;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn write_string(&mut self, value: String) -> Result<()>
-    where
-        Self: Unpin,
-    {
-        self.write_var_int(value.len() as i32)
-            .await
-            .context("failed to write string length")?;
-        let buf = value.as_bytes();
-        self.write_all(buf).await.context("failed to write string")
-    }
-
-    async fn write_packet(&mut self, value: &Vec<u8>) -> Result<()>
-    where
-        Self: Unpin,
-    {
-        self.write_var_int(value.len() as i32).await?;
-        self.write_all(value).await?;
-        Ok(())
-    }
-}
-
-// blanket implementations
-impl<T: AsyncRead> ProtocolReadExt for T {}
-impl<T: AsyncWrite> ProcotolWriteExt for T {}
+use crate::io::ProcotolWriteExt;
 
 pub struct ClientEncryption {
     pub public_key: RsaPublicKey,
@@ -163,7 +38,7 @@ pub struct Bridge {
 
 async fn handle_connection(stream: &mut TcpStream, addr: SocketAddr) -> Result<()> {
     // handshaking state
-    let length = stream
+    let _ = stream
         .read_var_int()
         .await
         .context("failed to read packet length")?;
@@ -176,7 +51,7 @@ async fn handle_connection(stream: &mut TcpStream, addr: SocketAddr) -> Result<(
         bail!("invalid packet id: {}", packet_id);
     }
     // read handshake packet
-    let protocol_version = stream
+    let _ = stream
         .read_var_int()
         .await
         .context("failed to read protocol version")?;
@@ -184,7 +59,7 @@ async fn handle_connection(stream: &mut TcpStream, addr: SocketAddr) -> Result<(
         .read_string()
         .await
         .context("failed to read server address")?;
-    let server_port = stream
+    let _ = stream
         .read_u16()
         .await
         .context("failed to read server port")?;
@@ -200,10 +75,11 @@ async fn handle_connection(stream: &mut TcpStream, addr: SocketAddr) -> Result<(
     }
 }
 
+#[tracing::instrument]
 async fn handle_status(stream: &mut TcpStream) -> Result<()> {
-    println!("handling server status");
+    debug!("Client entered status state");
     loop {
-        let length = stream
+        let _ = stream
             .read_var_int()
             .await
             .context("failed to read packet length")?;
@@ -214,7 +90,7 @@ async fn handle_status(stream: &mut TcpStream) -> Result<()> {
 
         match packet_id {
             0x00 => {
-                println!("writing status packet");
+                trace!("writing status packet");
                 // write packet id and response to output
                 let mut buf: Vec<u8> = Vec::new();
                 buf.write_var_int(0x00).await.unwrap();
@@ -247,10 +123,10 @@ async fn handle_status(stream: &mut TcpStream) -> Result<()> {
                 let len = buf.len();
                 stream.write_var_int(len as i32).await.unwrap();
                 stream.write_all_buf(&mut buf.as_slice()).await.unwrap();
-                println!("done");
+                trace!("done");
             }
             0x01 => {
-                println!("writing ping packet");
+                trace!("writing ping packet");
                 let nonce = stream.read_u64().await.unwrap();
                 // write packet id and nonce
                 let mut buf: Vec<u8> = Vec::new();
@@ -271,28 +147,64 @@ async fn handle_login(stream: &mut TcpStream) -> Result<()> {
     Ok(())
 }
 
+/// Moss is a light-weight reverse proxy for Minecraft servers.
+#[derive(Parser)]
+struct Args {
+    /// The path to the configuration file.
+    #[clap(long, default_value = "config.toml")]
+    config: PathBuf,
+}
+
 #[tokio::main]
 async fn main() {
+    // parse arguments
+    let args = Args::parse();
     // initialize logging
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive("moss=info".parse().unwrap())
+                .from_env()
+                .context("Failed to parse RUST_LOG environment variable")
+                .unwrap(),
+        )
+        .init();
+
+    info!("Starting moss proxy v{}", env!("CARGO_PKG_VERSION"));
+
+    // load config
+    let config = env::current_dir()
+        .context("failed to locate current directory")
+        .unwrap()
+        .join(args.config);
+    debug!("Loading configuration from {:?}...", config);
 
     let addr: SocketAddr = "127.0.0.1:25565"
         .parse()
         .context("failed to parse socket address")
         .unwrap();
+
     let listener = TcpListener::bind(addr).await.unwrap();
+
+    info!("Listening on {:?}", addr);
 
     loop {
         match listener.accept().await {
-            Ok((mut stream, _)) => {
+            Ok((mut stream, addr)) => {
+                debug!("New connection from {:?}", addr);
                 tokio::task::spawn(async move {
-                    let res = handle_connection(&mut stream, addr).await;
-                    if let Err(err) = res {
-                        println!("{:?}", err);
-                        stream
+                    let conn_failure = handle_connection(&mut stream, addr).await;
+                    let conn_failure = match conn_failure {
+                        Err(err) => stream
                             .shutdown()
                             .await
-                            .expect("failed to shutdown connection");
+                            .context(err)
+                            .context("Failed to shut down connection after error"),
+                        Ok(()) => Ok(()),
+                    };
+                    if let Err(err) = conn_failure {
+                        error!("{}", err);
                     }
                 });
             }

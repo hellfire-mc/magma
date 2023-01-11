@@ -1,7 +1,7 @@
 use std::io::{Cursor, Read};
 
 use aes::{
-    cipher::{AsyncStreamCipher, BlockDecryptMut, KeyIvInit},
+    cipher::{BlockDecryptMut, KeyIvInit},
     Aes128,
 };
 use anyhow::Result;

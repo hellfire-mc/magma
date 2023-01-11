@@ -1,10 +1,10 @@
+//! Contains a basic Minecraft proxy client for connecting to remote servers.
+
 use std::{io::Cursor, net::SocketAddr};
 
 use anyhow::{bail, Context, Result};
 use rand::RngCore;
-use rsa::{
-    pkcs8::DecodePublicKey, PaddingScheme, PublicKey, RsaPublicKey,
-};
+use rsa::{pkcs8::DecodePublicKey, PaddingScheme, PublicKey, RsaPublicKey};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -55,7 +55,7 @@ impl Client {
         buf.write_u128(self.player_uuid.as_u128()).await?;
         self.stream.write_packet(&buf).await?;
 
-		let mut cryptor: Option<Cryptor> = None;
+        let mut cryptor: Option<Cryptor> = None;
         loop {
             let packet_id;
             // handle encryption
@@ -117,7 +117,7 @@ impl Client {
                     buf.write_all(&encrypted_secret).await?;
                     // enable encryption
                     self.encrypted = true;
-					cryptor = Some(Cryptor::new(&secret))
+                    cryptor = Some(Cryptor::new(&secret))
                 }
                 0x02 => {
                     // handshake successful
