@@ -2,13 +2,24 @@
 
 use std::{net::SocketAddr, time::Duration};
 
-use anyhow::{Context, Error};
+use anyhow::{Context, Error, Result};
+
 use mc_chat::TextComponent;
+
+use rand::{thread_rng, Rng};
+use serde::Deserialize;
 use tokio::{net::TcpListener, task::JoinHandle};
 use tracing::{debug, warn};
 
-use crate::Bridge;
+use crate::bridge::Bridge;
 
+/// A proxy server.
+pub struct ProxyServer {
+    config: ProxyServerConfig,
+    clients: Vec<Bridge>,
+}
+
+/// The configuration for a proxy server.
 pub struct ProxyServerConfig {
     /// The binding address of the server.
     pub listen_addr: SocketAddr,
@@ -33,7 +44,9 @@ pub struct ProxyServerRoute {
     /// Where the server should accept connections from.
     pub from: String,
     /// Where the server should proxy connections to.
-    pub to: SocketAddr,
+    pub to: Vec<SocketAddr>,
+    /// The selection algorithm to use.
+    pub selection_algorithm: SelectionAlgorithmKind,
 }
 
 #[derive(Default)]
@@ -45,13 +58,72 @@ pub enum FallbackMethod {
     Status(TextComponent),
 }
 
-/// A proxy server.
-pub struct ProxyServer {
-    config: ProxyServerConfig,
-    clients: Vec<Bridge>,
+/// The server selection algorithm.
+#[derive(Deserialize)]
+pub enum SelectionAlgorithmKind {
+    #[serde(rename = "random")]
+    Random,
+    #[serde(rename = "round-robin")]
+    RoundRobin,
+}
+
+trait SelectionAlgorithm {
+    /// Initialize the algorithm.
+    fn new(targets: Vec<SocketAddr>) -> Self;
+    /// The kind of algorithm this implements.
+    fn kind(&self) -> SelectionAlgorithmKind;
+    /// Compute the next target.
+    fn next_target(&mut self) -> SocketAddr;
+}
+
+struct RoundRobinSelector {
+    targets: Vec<SocketAddr>,
+    index: usize,
+}
+
+impl SelectionAlgorithm for RoundRobinSelector {
+    fn new(targets: Vec<SocketAddr>) -> Self {
+        Self { targets, index: 0 }
+    }
+
+    fn kind(&self) -> SelectionAlgorithmKind {
+        SelectionAlgorithmKind::RoundRobin
+    }
+
+    fn next_target(&mut self) -> SocketAddr {
+        let target = self.targets[self.index];
+        self.index = (self.index + 1) % self.targets.len();
+        target
+    }
+}
+
+struct RandomSelector {
+    targets: Vec<SocketAddr>,
+}
+
+impl SelectionAlgorithm for RandomSelector {
+    fn new(targets: Vec<SocketAddr>) -> Self {
+        Self { targets }
+    }
+
+    fn kind(&self) -> SelectionAlgorithmKind {
+        SelectionAlgorithmKind::Random
+    }
+
+    fn next_target(&mut self) -> SocketAddr {
+        let idx = thread_rng().gen_range(0..self.targets.len());
+        self.targets[idx]
+    }
 }
 
 impl ProxyServer {
+    pub fn from_config(config: ProxyServerConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            clients: Vec::new(),
+        })
+    }
+
     /// Consume this server instance and spawn a Tokio task that handles connections.
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::task::spawn(async move {
@@ -88,7 +160,7 @@ impl ProxyServer {
             .context("failed to bind listener")?;
 
         loop {
-            let (stream, remote_addr) = listener
+            let (_stream, remote_addr) = listener
                 .accept()
                 .await
                 .context("failed to accept new connection")?;

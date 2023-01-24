@@ -1,1 +1,4 @@
 /target
+
+# ignore testing config
+config.toml

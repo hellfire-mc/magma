@@ -38,7 +38,7 @@ impl Bridge {
         }
         // create proxy client and handshake
         let mut proxy_client = BridgeClient::connect(remote_addr).await?;
-        proxy_client.handshake().await;
+        proxy_client.handshake().await?;
         // read login packet
 
         Ok(Some(Self {
@@ -61,7 +61,7 @@ impl BridgeServer {
         Self {
             state: ProtocolState::Handshaking,
             client_stream: stream,
-            cryptor: Cryptor::new(),
+            cryptor: Cryptor::Uninitialized,
         }
     }
     /// Accept a handshake package and transition into the next state.
@@ -92,8 +92,8 @@ impl BridgeServer {
 
     /// Accept a login packet.
     pub async fn login(&mut self) -> Result<()> {
-        let packet = self.client_stream.read_packet();
-        Ok(())
+        let _packet = self.client_stream.read_packet();
+        todo!("login implementation");
     }
 }
 
@@ -117,7 +117,7 @@ impl BridgeClient {
         Ok(Self {
             remote_addr,
             server_stream,
-            cryptor: Cryptor::new(),
+            cryptor: Cryptor::Uninitialized,
         })
     }
 
