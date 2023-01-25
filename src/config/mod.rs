@@ -2,35 +2,42 @@ mod v1;
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use async_trait::async_trait;
 use serde::Deserialize;
 use tokio::fs::read_to_string;
+
+use crate::proxy::ProxyServerConfig;
 
 use self::v1::ConfigV1;
 
 /// The latest configuration version.
 static LATEST_CONFIG_VERSION: u8 = 1;
 
-/// An enumeration of configuration versions.
-#[derive(Deserialize)]
-#[serde(untagged)]
-pub enum Config {
-    V1(ConfigV1),
+pub async fn from_path<P>(path: P) -> Result<impl Config>
+where
+    P: AsRef<Path>,
+{
+    let buf = read_to_string(path.as_ref())
+        .await
+        .context("Failed to read configuration file")?;
+
+    let config: VersionedConfig = toml::from_str(&buf).context("Failed to parse configuration")?;
+    match config.version {
+        1 => toml::from_str::<ConfigV1>(&buf).context("Failed to parse configuration"),
+        _ => bail!("Unknown config version: {}", config.version),
+    }
 }
 
-impl Config {
-    /// Read a migratable config from the givne path.
-    pub async fn from_path<P: AsRef<Path>>(p: P) -> Result<Self> {
-        let config = read_to_string(p.as_ref())
-            .await
-            .context("Failed to read configuration file")?;
-        toml::from_str(&config).context("Failed to parse configuration file")
-    }
-
+#[async_trait]
+pub trait Config {
     /// Test if this configuration is of the latest version.
-    pub fn is_latest(&self) -> bool {
-        match self {
-            Config::V1(_) => true,
-        }
-    }
+    fn is_latest(&self) -> bool;
+    /// Build this configuration into a list of proxy configurations.
+    fn build(self) -> Result<Vec<ProxyServerConfig>>;
+}
+
+#[derive(Deserialize)]
+struct VersionedConfig {
+    version: u8,
 }

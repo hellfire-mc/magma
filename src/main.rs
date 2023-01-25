@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     }
     // load config
     debug!("Loading configuration from {:?}...", config);
-    let config = Config::from_path(&config).await?;
+    let config = config::from_path(&config).await?;
     // check config is latest version
     if !config.is_latest() {
         todo!("config migration");

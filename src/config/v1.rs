@@ -1,6 +1,11 @@
 use std::net::{IpAddr, SocketAddr};
 
+use anyhow::Result;
 use serde::Deserialize;
+
+use crate::proxy::ProxyServerConfig;
+
+use super::Config;
 
 /// The Moss configuration object.
 #[derive(Deserialize)]
@@ -25,4 +30,14 @@ pub struct ProxyEntry {
     pub target: Option<SocketAddr>,
     #[serde(default = "Vec::new")]
     pub targets: Vec<SocketAddr>,
+}
+
+impl Config for ConfigV1 {
+    fn is_latest(&self) -> bool {
+        true
+    }
+
+    fn build(self) -> Result<Vec<ProxyServerConfig>> {
+        todo!()
+    }
 }
