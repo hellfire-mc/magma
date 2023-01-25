@@ -355,6 +355,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "magma"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "async-trait",
+ "cfb8",
+ "clap",
+ "mc_chat",
+ "minecraft-data-rs",
+ "miniz_oxide",
+ "rand",
+ "rsa",
+ "serde",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,28 +431,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "moss"
-version = "0.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "async-trait",
- "cfb8",
- "clap",
- "mc_chat",
- "minecraft-data-rs",
- "miniz_oxide",
- "rand",
- "rsa",
- "serde",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]

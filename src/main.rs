@@ -18,7 +18,7 @@ use tracing_subscriber::{
     fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter,
 };
 
-/// Moss is a light-weight reverse proxy for Minecraft servers.
+/// Magam is a light-weight domain-switching reverse proxy for Minecraft servers.
 #[derive(Parser)]
 struct Args {
     /// The path to the configuration file.
