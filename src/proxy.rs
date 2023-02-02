@@ -19,6 +19,14 @@ pub struct ProxyServer {
     clients: Vec<Bridge>,
 }
 
+/// The internal configuration definition.
+pub struct MagmaConfig {
+    /// Whether to enable debug logging.
+    pub debug: bool,
+    /// A list of proxy servers.
+    pub proxies: Vec<ProxyServerConfig>,
+}
+
 /// The configuration for a proxy server.
 pub struct ProxyServerConfig {
     /// The binding address of the server.
@@ -59,11 +67,10 @@ pub enum FallbackMethod {
 }
 
 /// The server selection algorithm.
-#[derive(Deserialize)]
+#[derive(Default)]
 pub enum SelectionAlgorithmKind {
-    #[serde(rename = "random")]
     Random,
-    #[serde(rename = "round-robin")]
+    #[default]
     RoundRobin,
 }
 

@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tokio::fs::read_to_string;
 
-use crate::proxy::ProxyServerConfig;
+use crate::proxy::MagmaConfig;
 
 use self::v1::ConfigV1;
 
@@ -34,7 +34,7 @@ pub trait Config {
     /// Test if this configuration is of the latest version.
     fn is_latest(&self) -> bool;
     /// Build this configuration into a list of proxy configurations.
-    fn build(self) -> Result<Vec<ProxyServerConfig>>;
+    fn build(self) -> Result<MagmaConfig>;
 }
 
 #[derive(Deserialize)]

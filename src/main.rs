@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
     // ensure config exists
     if !config.exists() {
         debug!("Failed to locate config file - copying defaults...");
-        write(config.clone(), include_str!("../assets/config.toml"))
+        write(config.clone(), include_str!("../assets/config.v1.toml"))
             .await
             .context("Failed to write default config file")?;
     }
