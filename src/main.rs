@@ -46,9 +46,10 @@ async fn main() -> Result<()> {
         .init();
     // splash!
     println!(
-        "\n{} v{}",
+        "\n{} v{} ({})",
         Style::new().bold().paint("magma"),
-        env!("CARGO_PKG_VERSION")
+        env!("CARGO_PKG_VERSION"),
+		env!("VERGEN_GIT_SHA_SHORT")
     );
     println!("{}\n", Color::Black.paint("made with 💜 by kaylen"));
 
@@ -80,7 +81,7 @@ async fn main() -> Result<()> {
         .unwrap_or(0);
 
     info!(
-        "Loaded {} proxy configurations with {} routes",
+        "Loaded {} proxy configuration(s) with {} route(s)",
         config.proxies.len(),
         route_count
     );

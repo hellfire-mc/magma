@@ -9,7 +9,7 @@ use mc_chat::TextComponent;
 use rand::{thread_rng, Rng};
 
 use tokio::{net::TcpListener, task::JoinHandle};
-use tracing::{debug, warn, span, Level, info};
+use tracing::{debug, info, span, warn, Level};
 
 use crate::bridge::Bridge;
 
@@ -137,12 +137,15 @@ impl ProxyServer {
     /// Consume this server instance and spawn a Tokio task that handles connections.
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::task::spawn(async move {
-
             let mut remaining = 6;
-			
+
             loop {
-				let span = span!(Level::INFO, "proxy", address=self.config.listen_addr.clone().to_string());
-				let _guard = span.enter();
+                let span = span!(
+                    Level::INFO,
+                    "proxy",
+                    address = self.config.listen_addr.clone().to_string()
+                );
+                let _guard = span.enter();
 
                 // decrement remaining starts
                 remaining -= 1;
@@ -174,7 +177,7 @@ impl ProxyServer {
             .await
             .context("failed to bind listener")?;
 
-		info!("Successfully started proxy server");
+        info!("Successfully started proxy server");
 
         loop {
             let (_stream, remote_addr) = listener
