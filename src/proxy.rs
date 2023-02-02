@@ -7,9 +7,9 @@ use anyhow::{Context, Error, Result};
 use mc_chat::TextComponent;
 
 use rand::{thread_rng, Rng};
-use serde::Deserialize;
+
 use tokio::{net::TcpListener, task::JoinHandle};
-use tracing::{debug, warn};
+use tracing::{debug, warn, span, Level, info};
 
 use crate::bridge::Bridge;
 
@@ -20,6 +20,7 @@ pub struct ProxyServer {
 }
 
 /// The internal configuration definition.
+#[derive(Debug)]
 pub struct MagmaConfig {
     /// Whether to enable debug logging.
     pub debug: bool,
@@ -28,6 +29,7 @@ pub struct MagmaConfig {
 }
 
 /// The configuration for a proxy server.
+#[derive(Debug)]
 pub struct ProxyServerConfig {
     /// The binding address of the server.
     pub listen_addr: SocketAddr,
@@ -48,6 +50,7 @@ impl Default for ProxyServerConfig {
 }
 
 /// A server route configuration.
+#[derive(Debug)]
 pub struct ProxyServerRoute {
     /// Where the server should accept connections from.
     pub from: String,
@@ -57,7 +60,7 @@ pub struct ProxyServerRoute {
     pub selection_algorithm: SelectionAlgorithmKind,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum FallbackMethod {
     /// Drop the connection.
     #[default]
@@ -67,7 +70,7 @@ pub enum FallbackMethod {
 }
 
 /// The server selection algorithm.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum SelectionAlgorithmKind {
     Random,
     #[default]
@@ -134,8 +137,13 @@ impl ProxyServer {
     /// Consume this server instance and spawn a Tokio task that handles connections.
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::task::spawn(async move {
-            let mut remaining = 5;
+
+            let mut remaining = 6;
+			
             loop {
+				let span = span!(Level::INFO, "proxy", address=self.config.listen_addr.clone().to_string());
+				let _guard = span.enter();
+
                 // decrement remaining starts
                 remaining -= 1;
                 // start listening
@@ -152,7 +160,7 @@ impl ProxyServer {
                             break;
                         }
                         // restart server
-                        warn!("Moss will now attempt to restart this server... attempts remaining: {}", remaining);
+                        warn!("Magma will now attempt to restart this server... attempts remaining: {}", remaining);
                         tokio::time::sleep(Duration::from_secs(5)).await;
                     }
                 }
@@ -165,6 +173,8 @@ impl ProxyServer {
         let listener = TcpListener::bind(self.config.listen_addr)
             .await
             .context("failed to bind listener")?;
+
+		info!("Successfully started proxy server");
 
         loop {
             let (_stream, remote_addr) = listener

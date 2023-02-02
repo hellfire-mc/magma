@@ -7,17 +7,17 @@ debug = false
 online = true
 
 # A server proxied by Moss.
-[[servers]]
+[[proxies]]
 # The domain of the server.
 domain = "mc.skzr.dev"
-# The port the proxy should listen on
-port = 25565
+# The address the proxy should listen on.
+address = "127.0.0.1:25565"
 # The forwarding target.
 target = "172.18.0.1:34001"
 
-[[servers]]
+[[proxies]]
 # A list of addresses to bind to
-address = [
+addresses = [
 	"172.18.0.1:25565"
 ]
 # A list of domains supported by this server entry.
