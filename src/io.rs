@@ -1,17 +1,33 @@
 //! Defines IO extension traits for reading from streams.
 
-use std::io::Cursor;
+use std::{fmt::Debug, io::Cursor};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tracing::trace;
 
 static SEGMENT_BITS: u8 = 0x7F;
 static CONTINUE_BIT: u8 = 0x80;
 
+/// A Minecraft packet.
+pub struct Packet {
+    pub id: usize,
+    pub len: usize,
+    pub data_len: usize,
+    pub data: Vec<u8>,
+}
+
+impl Packet {
+    /// Create a cursor from this packet's data.
+    pub fn as_cursor(&self) -> Cursor<&[u8]> {
+        Cursor::new(&self.data)
+    }
+}
+
 fn var_int_length(mut x: i32) -> usize {
-    let mut size = 0;
+    let mut size = 1; // all var ints are at least 1 byte big
     loop {
         x >>= 7;
         if x != 0 {
@@ -26,7 +42,7 @@ fn var_int_length(mut x: i32) -> usize {
 }
 
 #[async_trait]
-pub trait ProtocolReadExt: AsyncRead {
+pub trait ProtocolReadExt: AsyncRead + Debug {
     async fn read_var_int(&mut self) -> Result<i32>
     where
         Self: Unpin,
@@ -88,33 +104,70 @@ pub trait ProtocolReadExt: AsyncRead {
         String::from_utf8(buf).context("failed to decode string bytes")
     }
 
-    async fn read_packet(&mut self) -> Result<Cursor<Vec<u8>>>
+    #[tracing::instrument(skip_all)]
+    async fn read_packet(&mut self) -> Result<Packet>
     where
         Self: Unpin,
     {
         let len = self.read_var_int().await? as usize;
-        let packet_id = self.read_var_int().await?;
-        let buf = vec![0u8; len - var_int_length(packet_id)];
-        Ok(Cursor::new(buf))
+
+        if len == 0 {
+            bail!("Attempted to read empty packet")
+        }
+
+        let id = self.read_var_int().await?;
+        let data_len = len - var_int_length(id);
+        let mut data = vec![0u8; data_len];
+
+        self.read_exact(&mut data).await?;
+
+        trace!(len = len, id = id, data_len = data_len);
+
+        Ok(Packet {
+            data,
+            len,
+            id: id as usize,
+            data_len,
+        })
     }
 
-    async fn read_packet_compressed(&mut self) -> Result<Cursor<Vec<u8>>>
+    async fn read_packet_compressed(&mut self) -> Result<Packet>
     where
         Self: Unpin,
     {
-        let len = self.read_var_int().await?;
-        let data_len = self.read_var_int().await?;
-        // read packet data
-        let mut buf = vec![0u8; len as usize];
-        self.read_exact(&mut buf).await?;
+        let len = self.read_var_int().await? as usize;
+        let data_len = self.read_var_int().await? as usize;
         // packet is uncompressed
         if data_len == 0 {
-            return Ok(Cursor::new(buf));
+            let id = self.read_var_int().await?;
+            let data_len = len - var_int_length(id);
+            let mut data = vec![0u8; data_len];
+            self.read_exact(&mut data).await?;
+            return Ok(Packet {
+                data,
+                len,
+                id: id as usize,
+                data_len,
+            });
         }
+
+        let buf = vec![0u8; data_len];
         // decompress data
         let buf =
             decompress_to_vec_zlib(&buf).map_err(|_| anyhow!("failed to decompress packet"))?;
-        Ok(Cursor::new(buf))
+        let mut buf = Cursor::new(buf);
+        // read packet as normal
+        let id = buf.read_var_int().await?;
+        let data_len = len - var_int_length(id);
+        let mut data = vec![0u8; data_len];
+        self.read_exact(&mut data).await?;
+
+        return Ok(Packet {
+            data,
+            len,
+            id: id as usize,
+            data_len,
+        });
     }
 }
 
@@ -172,12 +225,13 @@ pub trait ProcotolWriteExt: AsyncWrite {
         self.write_all(buf).await.context("failed to write string")
     }
 
-    async fn write_packet(&mut self, value: &Vec<u8>) -> Result<()>
+    async fn write_packet(&mut self, id: i32, data: &Vec<u8>) -> Result<()>
     where
         Self: Unpin,
     {
-        self.write_var_int(value.len() as i32).await?;
-        self.write_all(value).await?;
+        self.write_var_int((data.len() + var_int_length(id)).try_into().unwrap()).await?;
+		self.write_var_int(id).await?;
+        self.write_all(data).await?;
         Ok(())
     }
 
@@ -194,5 +248,5 @@ pub trait ProcotolWriteExt: AsyncWrite {
 }
 
 // blanket implementations
-impl<T: AsyncRead> ProtocolReadExt for T {}
+impl<T: AsyncRead + Debug> ProtocolReadExt for T {}
 impl<T: AsyncWrite> ProcotolWriteExt for T {}

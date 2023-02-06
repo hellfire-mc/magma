@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         "\n{} v{} ({})",
         Style::new().bold().paint("magma"),
         env!("CARGO_PKG_VERSION"),
-		env!("VERGEN_GIT_SHA_SHORT")
+        env!("VERGEN_GIT_SHA_SHORT")
     );
     println!("{}\n", Color::Black.paint("made with 💜 by kaylen"));
 
@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
             .context("Failed to write default config file")?;
     }
     // load config
-    debug!("Loading configuration from {:?}...", config);
+    info!("Loading configuration from {:?}...", config);
     let config = config::from_path(&config).await?;
     // check config is latest version
     if !config.is_latest() {

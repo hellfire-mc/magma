@@ -3,12 +3,18 @@
 use std::net::SocketAddr;
 
 use anyhow::{bail, Context, Error, Result};
-use tokio::{io::AsyncWriteExt, net::TcpStream};
+use mc_chat::{ChatComponent, ComponentStyle};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
+use tracing::{debug, trace};
 
 use crate::{
     cryptor::Cryptor,
     io::{ProcotolWriteExt, ProtocolReadExt},
-    protocol::ProtocolState,
+    protocol::{ProtocolState, StatusResponse, StatusResponsePlayers, StatusResponseVersion},
+    proxy::{ProxyServerConfig, ProxyServerRoute},
 };
 
 /// A bridge between a client and a server.
@@ -25,15 +31,32 @@ pub struct Bridge {
 
 impl Bridge {
     /// Create a new bridge from the given stream and remote address.
-    async fn from_stream(
+    #[tracing::instrument(skip_all, name="bridge", fields(client=%remote_addr))]
+    pub async fn from_stream(
+        config: &ProxyServerConfig,
         stream: TcpStream,
         remote_addr: SocketAddr,
     ) -> Result<Option<Self>, Error> {
         // create the proxy server
         let mut proxy_server = BridgeServer::from_stream(stream).await;
-        let handshake = proxy_server.handshake().await.context("handshake failed")?;
-        // don't handle status
+        let handshake = proxy_server.handshake().await.context("Handshake failed")?;
+        // find target routes
+        let route = config
+            .routes
+            .iter()
+            .find(|r| r.from == handshake.server_address);
+
+        // handle status
         if matches!(handshake.next_state, ProtocolState::Status) {
+            debug!("Client requested server status");
+
+            proxy_server
+                .status(ChatComponent::from_text(
+                    "Unrecognised server",
+                    ComponentStyle::v1_16(),
+                ))
+                .await?;
+
             return Ok(None);
         }
         // create proxy client and handshake
@@ -64,30 +87,80 @@ impl BridgeServer {
             cryptor: Cryptor::Uninitialized,
         }
     }
+
     /// Accept a handshake package and transition into the next state.
+    #[tracing::instrument(skip_all)]
     pub async fn handshake(&mut self) -> Result<HandshakeResult> {
-        self.client_stream.read_var_int().await?; // packet length
-                                                  // ensure correct packet id
-        let packet_id = self.client_stream.read_var_int().await?; // packet id
-        if packet_id != 0x00 {
-            bail!("invalid packet id: {}", packet_id);
+        let packet = self.client_stream.read_packet().await?;
+        if packet.id != 0x00 {
+            bail!("invalid packet id: {}", packet.id);
         }
-        // read handshake packet
-        let protocol_version = self.client_stream.read_var_int().await?; // protocol version
-        let server_address = self.client_stream.read_string().await?; // server address
-        self.client_stream.read_var_int().await?; // server port
-        let next_state = match self.client_stream.read_var_int().await? {
+        // read handshake packet data
+        let mut data = packet.as_cursor();
+        let protocol_version = data.read_var_int().await?;
+        let server_address = data.read_string().await?;
+        let server_port = data.read_u16().await?;
+        let next_state = data.read_var_int().await?;
+        debug!("Protocol version: {}", protocol_version);
+        debug!("Server address: {}", server_address);
+        debug!("Server port: {}", server_port);
+        debug!("Next state: {}", next_state);
+        // switch on next state
+        let next_state = match next_state {
             1 => ProtocolState::Status,
             2 => ProtocolState::Login,
-            _ => bail!("invalid next state"),
+            s => bail!("Invalid next state: {}", s),
         };
         Ok(HandshakeResult {
             next_state,
             server_address,
             protocol_version: protocol_version
                 .try_into()
-                .context("failed to cast protocol version")?,
+                .context("Illegal protocol version")?,
         })
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn status(&mut self, description: ChatComponent) -> Result<()> {
+        let packet = self.client_stream.read_packet().await?;
+
+        match packet.id {
+            0x00 => {
+                debug!("Sending server status...");
+                let mut buf = Vec::new();
+                let status = StatusResponse {
+                    description,
+                    enforces_secure_chat: false,
+                    previews_chat: false,
+                    favicon: "".to_string(),
+                    players: StatusResponsePlayers {
+                        max: 0,
+                        online: 0,
+                        sample: vec![],
+                    },
+                    version: StatusResponseVersion {
+                        name: "Magma".to_string(),
+                        protocol: 761,
+                    },
+                };
+                let status = serde_json::to_string(&status)?;
+                buf.write_string(status).await?;
+                self.client_stream.write_packet(0x00, &buf).await?;
+            }
+            0x01 => {
+                debug!("Sending server ping...");
+                // read incoming packet data
+                let mut data = packet.as_cursor();
+                let payload = data.read_u64().await?;
+                // write outgoing packet data
+                let mut buf = Vec::new();
+                buf.write_u64(payload).await?;
+                self.client_stream.write_packet(0x01, &buf).await?;
+            }
+            _ => bail!("invalid packet id: {}", packet.id),
+        }
+
+        Ok(())
     }
 
     /// Accept a login packet.
@@ -125,12 +198,11 @@ impl BridgeClient {
     pub async fn handshake(&mut self) -> Result<()> {
         // write handshake packet
         let mut buf = Vec::new();
-        buf.write_var_int(0x00).await?;
         buf.write_var_int(761).await?;
         buf.write_string(self.remote_addr.ip().to_string()).await?;
         buf.write_u16(self.remote_addr.port()).await?;
         buf.write_var_int(2).await?;
-        self.server_stream.write_packet(&buf).await?;
+        self.server_stream.write_packet(0x00, &buf).await?;
 
         Ok(())
     }

@@ -135,6 +135,7 @@ impl Config for ConfigV1 {
                         proxies.insert(
                             address,
                             ProxyServerConfig {
+                                protocol_version: 761,
                                 listen_addr: address,
                                 fallback_method: FallbackMethod::Drop,
                                 routes,

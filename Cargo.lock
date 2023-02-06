@@ -591,6 +591,7 @@ dependencies = [
  "rand",
  "rsa",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
  "tracing",
@@ -614,6 +615,9 @@ name = "mc_chat"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc1950a018a5e574810e0ae517753b03d73df94da99133d99459a7d9fadcbb2f"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "memchr"

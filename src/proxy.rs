@@ -31,6 +31,8 @@ pub struct MagmaConfig {
 /// The configuration for a proxy server.
 #[derive(Debug)]
 pub struct ProxyServerConfig {
+    /// The protocol version to broadcast.
+    pub protocol_version: usize,
     /// The binding address of the server.
     pub listen_addr: SocketAddr,
     /// A list of routes this server uses.
@@ -42,6 +44,7 @@ pub struct ProxyServerConfig {
 impl Default for ProxyServerConfig {
     fn default() -> Self {
         Self {
+            protocol_version: 761,
             listen_addr: "127.0.0.1:25565".parse().unwrap(),
             routes: Vec::new(),
             fallback_method: FallbackMethod::default(),
@@ -135,18 +138,12 @@ impl ProxyServer {
     }
 
     /// Consume this server instance and spawn a Tokio task that handles connections.
+    #[tracing::instrument(name = "proxy", skip(self))]
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::task::spawn(async move {
             let mut remaining = 6;
 
             loop {
-                let span = span!(
-                    Level::INFO,
-                    "proxy",
-                    address = self.config.listen_addr.clone().to_string()
-                );
-                let _guard = span.enter();
-
                 // decrement remaining starts
                 remaining -= 1;
                 // start listening
@@ -157,6 +154,7 @@ impl ProxyServer {
                     }
                     Err(err) => {
                         warn!("Server encountered an unrecoverable error: {}", err);
+                        debug!("{:?}", err);
                         // don't restart if failed
                         if remaining == 0 {
                             warn!("Server has reached its maximum allowed restarts - shutdown permanent");
@@ -172,6 +170,11 @@ impl ProxyServer {
     }
 
     /// Bind this server to the listen address and start handling connections.
+    #[tracing::instrument(
+		name="proxy"
+		skip(self)
+		fields(addr=%self.config.listen_addr)
+	)]
     pub async fn listen(&mut self) -> Result<(), Error> {
         let listener = TcpListener::bind(self.config.listen_addr)
             .await
@@ -180,11 +183,26 @@ impl ProxyServer {
         info!("Successfully started proxy server");
 
         loop {
-            let (_stream, remote_addr) = listener
+            let (stream, remote_addr) = listener
                 .accept()
                 .await
                 .context("failed to accept new connection")?;
-            debug!("New connection from {:?}", remote_addr);
+
+            let bridge = match Bridge::from_stream(&self.config, stream, remote_addr).await {
+                Ok(bridge) => match bridge {
+                    Some(bridge) => bridge,
+                    None => {
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    warn!("Encountered error while creating bridge: {}", err);
+                    debug!("{:?}", err);
+                    continue;
+                }
+            };
+
+			info!("New connection from {:?}", remote_addr);
         }
     }
 }
