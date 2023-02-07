@@ -8,15 +8,14 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-use tracing::{debug, info, trace};
+use tracing::{debug, info};
 
 use crate::{
     cryptor::Cryptor,
     io::{ProcotolWriteExt, ProtocolReadExt},
     protocol::{ProtocolState, StatusResponse, StatusResponsePlayers, StatusResponseVersion},
     proxy::{
-        ProxyServerConfig, ProxyServerRoute, RandomSelector, SelectionAlgorithm,
-        SelectionAlgorithmKind,
+        ProxyServerConfig, SelectionAlgorithm,
     },
 };
 
@@ -89,7 +88,7 @@ impl Bridge {
         let route = route.unwrap();
         let proxy_client = BridgeClient::connect(*route.to.first().unwrap()).await;
 
-        if let Err(e) = proxy_client {
+        if let Err(_e) = proxy_client {
             // handle status
             if matches!(handshake.next_state, ProtocolState::Status) {
                 debug!("Client requested server status");
@@ -113,7 +112,7 @@ impl Bridge {
             return Ok(None);
         }
 
-		let proxy_client = proxy_client.unwrap();
+		let _proxy_client = proxy_client.unwrap();
 
         // handle status
         if matches!(handshake.next_state, ProtocolState::Status) {

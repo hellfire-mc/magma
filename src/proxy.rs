@@ -9,7 +9,7 @@ use mc_chat::TextComponent;
 use rand::{thread_rng, Rng};
 
 use tokio::{net::TcpListener, task::JoinHandle};
-use tracing::{debug, info, span, warn, Level};
+use tracing::{debug, info, warn};
 
 use crate::bridge::Bridge;
 
@@ -188,7 +188,7 @@ impl ProxyServer {
                 .await
                 .context("failed to accept new connection")?;
 
-            let bridge = match Bridge::from_stream(&self.config, stream, remote_addr).await {
+            let _bridge = match Bridge::from_stream(&self.config, stream, remote_addr).await {
                 Ok(bridge) => match bridge {
                     Some(bridge) => bridge,
                     None => {

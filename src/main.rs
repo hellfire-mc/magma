@@ -15,7 +15,7 @@ use futures::future;
 use io::ProtocolReadExt;
 
 use proxy::ProxyServer;
-use tokio::{fs::write, join};
+use tokio::{fs::write};
 use tracing::{debug, info};
 use tracing_subscriber::{
     fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter,
