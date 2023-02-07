@@ -80,7 +80,7 @@ pub enum SelectionAlgorithmKind {
     RoundRobin,
 }
 
-trait SelectionAlgorithm {
+pub trait SelectionAlgorithm {
     /// Initialize the algorithm.
     fn new(targets: Vec<SocketAddr>) -> Self;
     /// The kind of algorithm this implements.
@@ -89,7 +89,7 @@ trait SelectionAlgorithm {
     fn next_target(&mut self) -> SocketAddr;
 }
 
-struct RoundRobinSelector {
+pub struct RoundRobinSelector {
     targets: Vec<SocketAddr>,
     index: usize,
 }
@@ -110,7 +110,7 @@ impl SelectionAlgorithm for RoundRobinSelector {
     }
 }
 
-struct RandomSelector {
+pub struct RandomSelector {
     targets: Vec<SocketAddr>,
 }
 
@@ -201,8 +201,6 @@ impl ProxyServer {
                     continue;
                 }
             };
-
-			info!("New connection from {:?}", remote_addr);
         }
     }
 }

@@ -17,7 +17,7 @@ pub struct StatusResponse {
     pub version: StatusResponseVersion,
     pub players: StatusResponsePlayers,
     pub description: ChatComponent,
-	#[serde(default = "String::new")]
+    #[serde(default = "String::new")]
     pub favicon: String,
     pub previews_chat: bool,
     pub enforces_secure_chat: bool,

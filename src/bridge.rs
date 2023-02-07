@@ -8,13 +8,16 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use crate::{
     cryptor::Cryptor,
     io::{ProcotolWriteExt, ProtocolReadExt},
     protocol::{ProtocolState, StatusResponse, StatusResponsePlayers, StatusResponseVersion},
-    proxy::{ProxyServerConfig, ProxyServerRoute},
+    proxy::{
+        ProxyServerConfig, ProxyServerRoute, RandomSelector, SelectionAlgorithm,
+        SelectionAlgorithmKind,
+    },
 };
 
 /// A bridge between a client and a server.
@@ -37,6 +40,8 @@ impl Bridge {
         stream: TcpStream,
         remote_addr: SocketAddr,
     ) -> Result<Option<Self>, Error> {
+        info!("New connection to proxy");
+
         // create the proxy server
         let mut proxy_server = BridgeServer::from_stream(stream).await;
         let handshake = proxy_server.handshake().await.context("Handshake failed")?;
@@ -45,6 +50,70 @@ impl Bridge {
             .routes
             .iter()
             .find(|r| r.from == handshake.server_address);
+
+        if route.is_none() {
+            info!(
+                "Requested server {} was not found",
+                handshake.server_address
+            );
+
+            // handle status
+            if matches!(handshake.next_state, ProtocolState::Status) {
+                debug!("Client requested server status");
+
+                proxy_server
+                    .status(ChatComponent::from_text(
+                        "Unrecognised server",
+                        ComponentStyle::v1_16(),
+                    ))
+                    .await?;
+
+                info!("Disconnected from proxy");
+
+                return Ok(None);
+            }
+            // immediately disconnect
+            proxy_server
+                .login_disconnect(ChatComponent::from_text(
+                    format!("No route found for address '{}'", handshake.server_address),
+                    ComponentStyle::v1_16(),
+                ))
+                .await?;
+
+            info!("Disconnected from proxy");
+
+            return Ok(None);
+        }
+
+		// attempt to connect to the remote server
+        let route = route.unwrap();
+        let proxy_client = BridgeClient::connect(*route.to.first().unwrap()).await;
+
+        if let Err(e) = proxy_client {
+            // handle status
+            if matches!(handshake.next_state, ProtocolState::Status) {
+                debug!("Client requested server status");
+
+                proxy_server
+                    .status(ChatComponent::from_text(
+                        "Failed to connect to remote server",
+                        ComponentStyle::v1_16(),
+                    ))
+                    .await?;
+
+                return Ok(None);
+            }
+            // immediately disconnect
+            proxy_server
+                .login_disconnect(ChatComponent::from_text(
+                    "Failed to connect to remote server",
+                    ComponentStyle::v1_16(),
+                ))
+                .await?;
+            return Ok(None);
+        }
+
+		let proxy_client = proxy_client.unwrap();
 
         // handle status
         if matches!(handshake.next_state, ProtocolState::Status) {
@@ -139,8 +208,8 @@ impl BridgeServer {
                         sample: vec![],
                     },
                     version: StatusResponseVersion {
-                        name: "Magma".to_string(),
-                        protocol: 761,
+                        name: "Unknown".to_string(),
+                        protocol: 0,
                     },
                 };
                 let status = serde_json::to_string(&status)?;
@@ -167,6 +236,17 @@ impl BridgeServer {
     pub async fn login(&mut self) -> Result<()> {
         let _packet = self.client_stream.read_packet();
         todo!("login implementation");
+    }
+
+    pub async fn login_disconnect(&mut self, reason: ChatComponent) -> Result<()> {
+        // read login packet
+        let _packet = self.client_stream.read_packet().await?;
+        // write data
+        let mut buf = vec![];
+        let reason = serde_json::to_string(&reason)?;
+        buf.write_string(reason).await?;
+        self.client_stream.write_packet(0x00, &buf).await?;
+        Ok(())
     }
 }
 

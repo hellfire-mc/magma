@@ -229,8 +229,9 @@ pub trait ProcotolWriteExt: AsyncWrite {
     where
         Self: Unpin,
     {
-        self.write_var_int((data.len() + var_int_length(id)).try_into().unwrap()).await?;
-		self.write_var_int(id).await?;
+        self.write_var_int((data.len() + var_int_length(id)).try_into().unwrap())
+            .await?;
+        self.write_var_int(id).await?;
         self.write_all(data).await?;
         Ok(())
     }
