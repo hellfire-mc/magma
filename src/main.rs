@@ -15,10 +15,14 @@ use futures::future;
 use io::ProtocolReadExt;
 
 use proxy::ProxyServer;
-use tokio::{fs::write};
+use time::macros::format_description;
+use tokio::fs::write;
 use tracing::{debug, info};
 use tracing_subscriber::{
-    fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, EnvFilter,
+    fmt::{self, time::{LocalTime, UtcTime}},
+    prelude::__tracing_subscriber_SubscriberExt,
+    util::SubscriberInitExt,
+    EnvFilter,
 };
 
 /// Magam is a light-weight domain-switching reverse proxy for Minecraft servers.
@@ -35,7 +39,13 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     // initialize logging
     tracing_subscriber::registry()
-        .with(fmt::layer())
+        .with(
+            fmt::layer()
+                .compact()
+                .with_timer(UtcTime::new(format_description!(
+                    "[hour]:[minute]:[second]"
+                ))),
+        )
         .with(
             EnvFilter::builder()
                 .with_default_directive("magma=info".parse().unwrap())

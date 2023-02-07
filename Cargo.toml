@@ -11,18 +11,19 @@ async-trait = "0.1"
 cfb8 = "0.8"
 clap = { version = "4", features = ["derive"] }
 futures = "0.3"
-mc_chat = { version = "0.3", features =["serde"] }
+mc_chat = { version = "0.3", features = ["serde"] }
 minecraft-data-rs = "0.7"
 miniz_oxide = "0.7"
 rand = "0.8"
 rsa = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+time = { version = "0.3", features = ["macros", "formatting"] }
 tokio = { version = "1", features = ["full"] }
 toml = "0.7"
 tracing = "0.1"
 tracing-futures = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time", "local-time"] }
 uuid = "1"
 
 [build-dependencies]

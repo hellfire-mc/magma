@@ -14,9 +14,7 @@ use crate::{
     cryptor::Cryptor,
     io::{ProcotolWriteExt, ProtocolReadExt},
     protocol::{ProtocolState, StatusResponse, StatusResponsePlayers, StatusResponseVersion},
-    proxy::{
-        ProxyServerConfig, SelectionAlgorithm,
-    },
+    proxy::{ProxyServerConfig, SelectionAlgorithm},
 };
 
 /// A bridge between a client and a server.
@@ -84,7 +82,7 @@ impl Bridge {
             return Ok(None);
         }
 
-		// attempt to connect to the remote server
+        // attempt to connect to the remote server
         let route = route.unwrap();
         let proxy_client = BridgeClient::connect(*route.to.first().unwrap()).await;
 
@@ -112,7 +110,7 @@ impl Bridge {
             return Ok(None);
         }
 
-		let _proxy_client = proxy_client.unwrap();
+        let _proxy_client = proxy_client.unwrap();
 
         // handle status
         if matches!(handshake.next_state, ProtocolState::Status) {
