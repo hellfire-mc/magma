@@ -4,9 +4,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use tracing::warn;
 
-use crate::proxy::{self, FallbackMethod, MagmaConfig, ProxyServerConfig, ProxyServerRoute};
-
-use super::Config;
+use super::{Config, FallbackMethod, MagmaConfig, Proxy, Route, SelectionAlgorithmKind};
 
 /// The Moss configuration object.
 #[derive(Deserialize)]
@@ -57,7 +55,7 @@ impl Config for ConfigV1 {
     }
 
     fn build(self) -> Result<MagmaConfig> {
-        let mut proxies: HashMap<SocketAddr, ProxyServerConfig> = HashMap::new();
+        let mut proxies: HashMap<SocketAddr, Proxy> = HashMap::new();
 
         for (i, proxy) in self.proxies.into_iter().enumerate() {
             let addresses = proxy
@@ -101,16 +99,16 @@ impl Config for ConfigV1 {
                 // build routes
                 let mut routes: Vec<_> = domains
                     .iter()
-                    .map(|domain| ProxyServerRoute {
+                    .map(|domain| Route {
                         from: domain.clone(),
                         to: targets.clone(),
                         selection_algorithm: proxy
                             .selection_algorithm
                             .clone()
                             .map(|s| match s {
-                                SelectionAlgorithm::Random => proxy::SelectionAlgorithmKind::Random,
+                                SelectionAlgorithm::Random => SelectionAlgorithmKind::Random,
                                 SelectionAlgorithm::RoundRobin => {
-                                    proxy::SelectionAlgorithmKind::RoundRobin
+                                    SelectionAlgorithmKind::RoundRobin
                                 }
                             })
                             .unwrap_or_default(),
@@ -134,7 +132,7 @@ impl Config for ConfigV1 {
                     None => {
                         proxies.insert(
                             address,
-                            ProxyServerConfig {
+                            Proxy {
                                 protocol_version: 761,
                                 listen_addr: address,
                                 fallback_method: FallbackMethod::Drop,

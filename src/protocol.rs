@@ -1,4 +1,4 @@
-use mc_chat::ChatComponent;
+use mc_chat::{ChatComponent, ComponentStyle, TextComponent};
 use serde::Serialize;
 
 /// The protocol state.
@@ -21,6 +21,27 @@ pub struct StatusResponse {
     pub favicon: String,
     pub previews_chat: bool,
     pub enforces_secure_chat: bool,
+}
+
+impl StatusResponse {
+    pub fn message<S: AsRef<str>>(message: S) -> StatusResponse {
+        let message = message.as_ref().to_owned();
+        StatusResponse {
+            version: StatusResponseVersion {
+                name: "Unknown".to_string(),
+                protocol: 0,
+            },
+            players: StatusResponsePlayers {
+                max: 0,
+                online: 0,
+                sample: vec![],
+            },
+            description: ChatComponent::from_text(message, ComponentStyle::v1_15()),
+            favicon: "".to_string(),
+            previews_chat: false,
+            enforces_secure_chat: false,
+        }
+    }
 }
 
 #[derive(Serialize)]

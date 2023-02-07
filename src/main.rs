@@ -11,15 +11,14 @@ use ansi_term::{Color, Style};
 use anyhow::{Context, Result};
 use clap::Parser;
 use config::Config;
-use futures::future;
+use futures::future::{self, try_join_all};
 use io::ProtocolReadExt;
 
-use proxy::ProxyServer;
 use time::macros::format_description;
 use tokio::fs::write;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::{
-    fmt::{self, time::{LocalTime, UtcTime}},
+    fmt::{self, time::UtcTime},
     prelude::__tracing_subscriber_SubscriberExt,
     util::SubscriberInitExt,
     EnvFilter,
@@ -39,13 +38,9 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     // initialize logging
     tracing_subscriber::registry()
-        .with(
-            fmt::layer()
-                .compact()
-                .with_timer(UtcTime::new(format_description!(
-                    "[hour]:[minute]:[second]"
-                ))),
-        )
+        .with(fmt::layer().with_timer(UtcTime::new(format_description!(
+            "[hour]:[minute]:[second]"
+        ))))
         .with(
             EnvFilter::builder()
                 .with_default_directive("magma=info".parse().unwrap())
@@ -98,11 +93,20 @@ async fn main() -> Result<()> {
 
     let mut handles = vec![];
     for config in config.proxies {
-        let proxy = ProxyServer::from_config(config).context("failed to create proxy server")?;
-        handles.push(proxy.spawn());
+        handles.push(proxy::spawn(config));
     }
 
-    future::join_all(handles).await;
-
-    Ok(())
+    match try_join_all(handles).await {
+        Ok(errs) => {
+            let errs = errs.iter().filter(|r| r.is_err()).count();
+            if errs != 0 {
+                error!("Encountered an unrecoverable error - Magma will now exit")
+            }
+            Ok(())
+        }
+        Err(err) => {
+            error!("Encountered error while starting proxies: {}", err);
+            Ok(())
+        }
+    }
 }
