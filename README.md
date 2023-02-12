@@ -2,6 +2,13 @@
 
 Magma is a domain-switching reverse proxy for Minecraft servers.
 
+It functions by reading the server address packet sent by the client during the login process, then switching packets to a number of routes based on this address, as specified in the proxy's config. You can think of Magma as NGINX for Minecraft.
+
+🚧 **Warning** 🚧
+ 
+Magma is still very much work in progress and is not production ready! Contributions are very much welcome.
+
+
 ## Configuration
 
 ### Example Configuration
