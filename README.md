@@ -1,4 +1,6 @@
-# magma
+<div align="center">
+	<img src="https://raw.githubusercontent.com/hellfire-mc/magma/main/.github/assets/brand.png" width=864 />
+</div>
 
 Magma is a domain-switching reverse proxy for Minecraft servers.
 
