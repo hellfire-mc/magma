@@ -7,7 +7,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 use crate::{
     cryptor::Cryptor,
-    io::{ProcotolWriteExt, ProtocolReadExt},
+    io::{Packet, ProcotolWriteExt, ProtocolReadExt},
     protocol::ProtocolState,
 };
 
@@ -43,8 +43,8 @@ async fn handle_downstream_status(
     server_rx: &mut OwnedReadHalf,
     client_tx: &mut OwnedWriteHalf,
 ) -> Result<()> {
-    let packet = server_rx.read_packet().await?;
-    client_tx.write_packet(&packet).await?;
+    let packet = server_rx.read_uncompressed_packet().await?;
+    client_tx.write_uncompressed_packet(&packet).await?;
     Ok(())
 }
 
@@ -64,23 +64,9 @@ async fn handle_downstream_play(
     client_tx: &mut OwnedWriteHalf,
 ) -> Result<()> {
     let packet = match { state.server.read().await }.compressed {
-        true => server_rx.read_packet_compressed().await?,
-        false => server_rx.read_packet().await?,
+        true => Packet::Compressed(server_rx.read_compressed_packet().await?),
+        false => Packet::Uncompressed(server_rx.read_uncompressed_packet().await?),
     };
 
-    let buf = Vec::new();
-    // write packet to buffer
-    let mut cursor = Cursor::new(buf);
-    match { state.client.read().await }.compressed {
-        true => cursor.write_packet_compressed(&packet).await?,
-        false => cursor.write_packet(&packet).await?,
-    }
-
-    let encrypted_packet = {
-        let cryptor = &mut state.client.write().await.cryptor;
-        cryptor.encrypt_packet(&mut cursor.get_mut())
-    };
-
-    client_tx.write_packet(&packet).await?;
-    Ok(())
+	todo!("handle client packet encryption")
 }

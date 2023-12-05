@@ -98,7 +98,7 @@ pub async fn listen(proxy: Proxy) -> Result<()> {
 /// Handle a new connection from a client.
 pub async fn handle_connection(proxy: Arc<Proxy>, mut client_stream: TcpStream) -> Result<()> {
     // read the first packet from the client - this should be a handshake packet
-    let handshake = client_stream.read_packet().await?;
+    let handshake = client_stream.read_uncompressed_packet().await?;
     if handshake.id != 0x00 {
         trace!("Received unexpected packet from client: {:?}", handshake.id);
         client_stream.shutdown().await?;

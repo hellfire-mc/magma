@@ -45,8 +45,8 @@ async fn handle_upstream_status(
     client_rx: &mut OwnedReadHalf,
     server_tx: &mut OwnedWriteHalf,
 ) -> Result<()> {
-    let packet = client_rx.read_packet().await?;
-    server_tx.write_packet(&packet).await?;
+    let packet = client_rx.read_uncompressed_packet().await?;
+    server_tx.write_uncompressed_packet(&packet).await?;
     Ok(())
 }
 
@@ -79,8 +79,8 @@ async fn handle_upstream_login(
     server_tx: &mut OwnedWriteHalf,
 ) -> Result<()> {
     // read the login start packet from the client
-    let login_start = client_rx.read_packet().await?;
-    server_tx.write_packet(&login_start).await?;
+    let login_start = client_rx.read_uncompressed_packet().await?;
+    server_tx.write_uncompressed_packet(&login_start).await?;
 
     // read login info
     let mut login_start = login_start.as_cursor();
@@ -88,7 +88,7 @@ async fn handle_upstream_login(
     let uuid = login_start.read_uuid().await?;
 
     // read the client encryption response packet
-    let encryption_response = client_rx.read_packet().await?;
+    let encryption_response = client_rx.read_uncompressed_packet().await?;
     if encryption_response.id != 0x01 {
         bail!(
             "Expected encryption response packet, got {:?}",
@@ -96,8 +96,12 @@ async fn handle_upstream_login(
         );
     }
     let mut encryption_response = encryption_response.as_cursor();
-    let shared_secret = encryption_response.read_byte_array().await?;
-    let verify_token = encryption_response.read_byte_array().await?;
+	let shared_secret_length = encryption_response.read_var_int().await?;
+	let mut shared_secret = vec![0u8; shared_secret_length as usize];
+    let shared_secret = encryption_response.read_exact(&mut shared_secret).await?;
+    let verify_token_length = encryption_response.read_var_int().await?;
+	let mut verify_token = vec![0u8; verify_token_length as usize];
+	let verify_token = encryption_response.read_exact(&mut verify_token).await?;
 
     // make auth request to mojang
     let response: MojangAuthResponse = reqwest::get(format!(
