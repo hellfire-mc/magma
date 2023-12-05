@@ -1,17 +1,13 @@
 //! Handles the downstream connection from the server to the client.
 
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
-use crate::{
-    cryptor::Cryptor,
-    io::{Packet, ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
-    protocol::ProtocolState,
-};
+use crate::io::{Packet, ProcotolAsyncWriteExt, ProtocolAsyncReadExt};
 
-use super::BridgeState;
+use super::{BridgeState, ProtocolState};
 
 /// Create a state machine to handle downstream packets - that is, packets from the server to the client.
 pub async fn handle_downstream(

@@ -1,19 +1,19 @@
-mod bridge;
-mod config;
-mod cryptor;
-mod io;
-mod protocol;
-mod proxy;
+//! Magma is a light-weight domain-switching reverse proxy for Minecraft servers.
+//!
+//! # Features
+//!
+//! - **Light-weight**: Magma is designed to be as light-weight as possible, and uses minimal resources.
+//! - **Fast**: Magma is written in Rust, and is designed to be fast.
+//! - **Secure**: Magma supports the Minecraft protocol encryption, and uses it by default.
+//! - **Flexible**: Magma supports multiple routing algorithms, and can be configured to use any of them.
+//! - **Easy to use**: Magma is easy to use, and can be configured using a simple TOML configuration file.
 
 use std::{env, path::PathBuf};
 
 use ansi_term::{Color, Style};
 use anyhow::{Context, Result};
 use clap::Parser;
-use config::Config;
 use futures::future::try_join_all;
-use io::ProtocolAsyncReadExt;
-
 use time::macros::format_description;
 use tokio::fs::write;
 use tracing::{debug, error, info};
@@ -23,6 +23,14 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
     EnvFilter,
 };
+
+mod bridge;
+mod config;
+mod cryptor;
+mod io;
+mod proxy;
+
+use config::Config;
 
 /// Magam is a light-weight domain-switching reverse proxy for Minecraft servers.
 #[derive(Parser)]

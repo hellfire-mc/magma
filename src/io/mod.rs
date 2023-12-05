@@ -116,7 +116,7 @@ impl Packet {
     pub fn into_raw(self) -> Result<Vec<u8>> {
         match self {
             Packet::Uncompressed(packet) => packet.into_raw(),
-            Packet::Compressed(packet) => packet.into_raw()
+            Packet::Compressed(packet) => packet.into_raw(),
         }
     }
 }

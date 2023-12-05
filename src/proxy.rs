@@ -17,10 +17,9 @@ use tokio::{
 use tracing::{error, info, trace, warn};
 
 use crate::{
-    bridge,
+    bridge::{self, ProtocolState},
     config::{Proxy, SelectionAlgorithmKind},
     io::{ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
-    protocol::ProtocolState,
 };
 
 /// A selection algorithm for routing new connections to upstream servers.

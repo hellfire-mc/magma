@@ -10,12 +10,9 @@ use tokio::{
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
 };
 
-use crate::{
-    io::{ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
-    protocol::ProtocolState,
-};
+use crate::io::{ProcotolAsyncWriteExt, ProtocolAsyncReadExt};
 
-use super::BridgeState;
+use super::{BridgeState, ProtocolState};
 
 /// Create a state machine to handle upstream packets - that is, packets from the client to the server.
 pub async fn handle_upstream(
