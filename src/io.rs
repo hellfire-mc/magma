@@ -7,13 +7,14 @@ use async_trait::async_trait;
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::trace;
+use uuid::Uuid;
 
 static SEGMENT_BITS: u8 = 0x7F;
 static CONTINUE_BIT: u8 = 0x80;
 
 /// A Minecraft packet.
 pub struct Packet {
-    pub id: usize,
+    pub id: i32,
     pub len: usize,
     pub data_len: usize,
     pub data: Vec<u8>,
@@ -105,6 +106,28 @@ pub trait ProtocolReadExt: AsyncRead + Debug {
     }
 
     #[tracing::instrument(skip_all)]
+    async fn read_uuid(&mut self) -> Result<Uuid>
+    where
+        Self: Unpin,
+    {
+        let mut buf = [0u8; 16];
+        self.read_exact(&mut buf).await?;
+        let uuid = Uuid::from_bytes(buf);
+        Ok(uuid)
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn read_byte_array(&mut self) -> Result<Vec<u8>>
+    where
+        Self: Unpin,
+    {
+        let len = self.read_var_int().await? as usize;
+        let mut buf = vec![0u8; len];
+        self.read_exact(&mut buf).await?;
+        Ok(buf)
+    }
+
+    #[tracing::instrument(skip_all)]
     async fn read_packet(&mut self) -> Result<Packet>
     where
         Self: Unpin,
@@ -126,7 +149,7 @@ pub trait ProtocolReadExt: AsyncRead + Debug {
         Ok(Packet {
             data,
             len,
-            id: id as usize,
+            id,
             data_len,
         })
     }
@@ -146,7 +169,7 @@ pub trait ProtocolReadExt: AsyncRead + Debug {
             return Ok(Packet {
                 data,
                 len,
-                id: id as usize,
+                id,
                 data_len,
             });
         }
@@ -165,7 +188,7 @@ pub trait ProtocolReadExt: AsyncRead + Debug {
         return Ok(Packet {
             data,
             len,
-            id: id as usize,
+            id,
             data_len,
         });
     }
@@ -225,25 +248,35 @@ pub trait ProcotolWriteExt: AsyncWrite {
         self.write_all(buf).await.context("failed to write string")
     }
 
-    async fn write_packet(&mut self, id: i32, data: &Vec<u8>) -> Result<()>
+    async fn write_packet(&mut self, packet: &Packet) -> Result<()>
     where
         Self: Unpin,
     {
-        self.write_var_int((data.len() + var_int_length(id)).try_into().unwrap())
-            .await?;
-        self.write_var_int(id).await?;
-        self.write_all(data).await?;
+        self.write_var_int(
+            (packet.data_len + var_int_length(packet.id))
+                .try_into()
+                .unwrap(),
+        )
+        .await?;
+        self.write_var_int(packet.id).await?;
+        self.write_all(&packet.data).await?;
         Ok(())
     }
 
-    async fn write_packet_compressed(&mut self, value: &Vec<u8>) -> Result<()>
+    async fn write_packet_compressed(&mut self, packet: &Packet) -> Result<()>
     where
         Self: Unpin,
     {
-        let buf = compress_to_vec_zlib(value, 10);
-        self.write_var_int(buf.len() as i32).await?;
-        self.write_var_int(value.len() as i32).await?;
-        self.write_all(&buf).await?;
+        // compress packet data
+        let mut buf = Vec::new();
+        buf.write_var_int(packet.id).await?;
+        buf.write_all(&packet.data).await?;
+        let compressed_data = compress_to_vec_zlib(&buf, 10);
+		// write compressed packet
+        self.write_var_int(compressed_data.len() as i32).await?;
+        self.write_var_int(packet.data.len() as i32).await?;
+        self.write_all(&compressed_data).await?;
+
         Ok(())
     }
 }

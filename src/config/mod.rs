@@ -3,15 +3,14 @@ mod v1;
 use std::{net::SocketAddr, path::Path};
 
 use anyhow::{bail, Context, Result};
-use async_trait::async_trait;
 use mc_chat::TextComponent;
 use serde::Deserialize;
 use tokio::fs::read_to_string;
-use tracing::Value;
 
 use self::v1::ConfigV1;
 
-/// The internal configuration definition.
+/// The internal configuration definition. Magma automatially maps from
+/// configuration files to this structure.
 #[derive(Debug)]
 pub struct MagmaConfig {
     /// Whether to enable debug logging.
@@ -90,7 +89,7 @@ where
     }
 }
 
-#[async_trait]
+/// A configuration version.
 pub trait Config {
     /// Test if this configuration is of the latest version.
     fn is_latest(&self) -> bool;
@@ -98,6 +97,13 @@ pub trait Config {
     fn build(self) -> Result<MagmaConfig>;
 }
 
+/// A migration from one configuration version to another.
+pub trait Migrate<A, B> {
+    /// Migrate from one configuration version to another.
+    fn migrate(self, from: A) -> B;
+}
+
+/// A basic versioned configuration, with a single version field.
 #[derive(Deserialize)]
 struct VersionedConfig {
     version: u8,

@@ -1,64 +1,44 @@
-use mc_chat::{ChatComponent, ComponentStyle, TextComponent};
-use serde::Serialize;
-
 /// The protocol state.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub enum ProtocolState {
+    /// The protocol is awaiting a handshake.
     #[default]
     Handshaking,
+    /// The protocol is awaiting a status request.
     Status,
+    /// Login state - the protocol is awaiting a login.
     Login,
+    /// Play state - the protocol is connected to a server.
     Play,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StatusResponse {
-    pub version: StatusResponseVersion,
-    pub players: StatusResponsePlayers,
-    pub description: ChatComponent,
-    #[serde(default = "String::new")]
-    pub favicon: String,
-    pub previews_chat: bool,
-    pub enforces_secure_chat: bool,
-}
+impl TryFrom<i32> for ProtocolState {
+    type Error = anyhow::Error;
 
-impl StatusResponse {
-    pub fn message<S: AsRef<str>>(message: S) -> StatusResponse {
-        let message = message.as_ref().to_owned();
-        StatusResponse {
-            version: StatusResponseVersion {
-                name: "Unknown".to_string(),
-                protocol: 0,
-            },
-            players: StatusResponsePlayers {
-                max: 0,
-                online: 0,
-                sample: vec![],
-            },
-            description: ChatComponent::from_text(message, ComponentStyle::v1_15()),
-            favicon: "".to_string(),
-            previews_chat: false,
-            enforces_secure_chat: false,
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(ProtocolState::Handshaking),
+            1 => Ok(ProtocolState::Status),
+            2 => Ok(ProtocolState::Login),
+            3 => Ok(ProtocolState::Play),
+            _ => Err(anyhow::anyhow!("Invalid protocol state {}", value)),
         }
     }
 }
 
-#[derive(Serialize)]
-pub struct StatusResponseVersion {
-    pub name: String,
-    pub protocol: u16,
+impl From<&ProtocolState> for i32 {
+    fn from(protocol_state: &ProtocolState) -> Self {
+        match protocol_state {
+            ProtocolState::Handshaking => 0,
+            ProtocolState::Status => 1,
+            ProtocolState::Login => 2,
+            ProtocolState::Play => 3,
+        }
+    }
 }
 
-#[derive(Serialize)]
-pub struct StatusResponsePlayers {
-    pub max: usize,
-    pub online: usize,
-    pub sample: Vec<StatusResponsePlayer>,
-}
-
-#[derive(Serialize)]
-pub struct StatusResponsePlayer {
-    pub name: String,
-    pub uuid: String,
+impl From<ProtocolState> for i32 {
+    fn from(protocol_state: ProtocolState) -> Self {
+        (&protocol_state).into()
+    }
 }

@@ -11,7 +11,7 @@ use ansi_term::{Color, Style};
 use anyhow::{Context, Result};
 use clap::Parser;
 use config::Config;
-use futures::future::{self, try_join_all};
+use futures::future::try_join_all;
 use io::ProtocolReadExt;
 
 use time::macros::format_description;
@@ -19,7 +19,7 @@ use tokio::fs::write;
 use tracing::{debug, error, info};
 use tracing_subscriber::{
     fmt::{self, time::UtcTime},
-    prelude::__tracing_subscriber_SubscriberExt,
+    prelude::*,
     util::SubscriberInitExt,
     EnvFilter,
 };
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         "\n{} v{} ({})",
         Style::new().bold().paint("magma"),
         env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA_SHORT")
+        env!("VERGEN_GIT_SHA")
     );
     println!("{}\n", Color::Black.paint("made with 💜 by kaylen"));
 

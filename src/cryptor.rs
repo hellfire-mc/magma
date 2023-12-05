@@ -1,3 +1,5 @@
+//! Handles encryption and decryption of packets between the client and proxy.
+
 use std::io::{Cursor, Read};
 
 use aes::{
@@ -11,12 +13,15 @@ use crate::ProtocolReadExt;
 type Decryptor = cfb8::Decryptor<Aes128>;
 type Encryptor = cfb8::Encryptor<Aes128>;
 
+#[derive(Default)]
 pub enum Cryptor {
+    #[default]
     Uninitialized,
     Initialized {
         encryptor: Box<Encryptor>,
         decryptor: Box<Decryptor>,
-        buffer: Vec<u8>,
+        inbuffer: Vec<u8>,
+        outbuffer: Vec<u8>,
     },
 }
 
@@ -24,7 +29,8 @@ impl Cryptor {
     /// Create a new cryptor instance.
     pub fn new(key: &[u8]) -> Self {
         Self::Initialized {
-            buffer: Vec::with_capacity(512),
+            inbuffer: Vec::with_capacity(512),
+            outbuffer: Vec::with_capacity(512),
             decryptor: Box::new(Decryptor::new(key.into(), key.into())),
             encryptor: Box::new(Encryptor::new(key.into(), key.into())),
         }
@@ -32,15 +38,15 @@ impl Cryptor {
 
     /// Read the next packet from the stream.
     pub async fn next_packet(&mut self, data: &mut [u8]) -> Result<Option<Vec<u8>>> {
-        let (_encryptor, decryptor, buffer) = match self {
+        let (decryptor, buffer) = match self {
             Cryptor::Initialized {
-                encryptor,
+                encryptor: _,
                 decryptor,
-                buffer,
-            } => (encryptor, decryptor, buffer),
+                inbuffer,
+                outbuffer: _,
+            } => (decryptor, inbuffer),
             _ => panic!(),
         };
-
         // decrypt data
         decryptor.decrypt_block_mut(data.into());
         buffer.extend_from_slice(data);
@@ -57,5 +63,10 @@ impl Cryptor {
         // update internal buffer
         buffer.drain(0..packet_length);
         Ok(Some(buf))
+    }
+
+    /// Encrypt the given data.
+    pub fn encrypt_packet(&mut self, data: &[u8]) -> Vec<u8> {
+        todo!()
     }
 }
