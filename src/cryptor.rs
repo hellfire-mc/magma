@@ -8,7 +8,7 @@ use aes::{
 };
 use anyhow::Result;
 
-use crate::ProtocolReadExt;
+use crate::ProtocolAsyncReadExt;
 
 type Decryptor = cfb8::Decryptor<Aes128>;
 type Encryptor = cfb8::Encryptor<Aes128>;

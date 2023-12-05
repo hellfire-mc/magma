@@ -11,7 +11,7 @@ use tokio::{
 };
 
 use crate::{
-    io::{ProcotolWriteExt, ProtocolReadExt},
+    io::{ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
     protocol::ProtocolState,
 };
 
@@ -96,12 +96,12 @@ async fn handle_upstream_login(
         );
     }
     let mut encryption_response = encryption_response.as_cursor();
-	let shared_secret_length = encryption_response.read_var_int().await?;
-	let mut shared_secret = vec![0u8; shared_secret_length as usize];
+    let shared_secret_length = encryption_response.read_var_int().await?;
+    let mut shared_secret = vec![0u8; shared_secret_length as usize];
     let shared_secret = encryption_response.read_exact(&mut shared_secret).await?;
     let verify_token_length = encryption_response.read_var_int().await?;
-	let mut verify_token = vec![0u8; verify_token_length as usize];
-	let verify_token = encryption_response.read_exact(&mut verify_token).await?;
+    let mut verify_token = vec![0u8; verify_token_length as usize];
+    let verify_token = encryption_response.read_exact(&mut verify_token).await?;
 
     // make auth request to mojang
     let response: MojangAuthResponse = reqwest::get(format!(

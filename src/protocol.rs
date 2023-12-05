@@ -1,3 +1,5 @@
+//! Defines a variety of protocol-related types.
+
 /// The protocol state.
 #[derive(Clone, Default, Debug)]
 pub enum ProtocolState {

@@ -1,4 +1,4 @@
-//! The bridge proxies data from a single client TcpStream to a single server TcpStream.
+//! Defines the bridge between the client and server.
 //!
 //! Once a client has connected to the proxy, the proxy will attempt to connect to the upstream,
 //! and if successful, will create a bridge to proxy data between the two streams.

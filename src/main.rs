@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use config::Config;
 use futures::future::try_join_all;
-use io::ProtocolReadExt;
+use io::ProtocolAsyncReadExt;
 
 use time::macros::format_description;
 use tokio::fs::write;

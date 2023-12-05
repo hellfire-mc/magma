@@ -1,3 +1,5 @@
+//! Defines the configuration for Magma, as well as migration logic.
+
 mod v1;
 
 use std::{net::SocketAddr, path::Path};

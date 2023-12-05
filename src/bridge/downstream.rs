@@ -7,7 +7,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
 use crate::{
     cryptor::Cryptor,
-    io::{Packet, ProcotolWriteExt, ProtocolReadExt},
+    io::{Packet, ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
     protocol::ProtocolState,
 };
 
@@ -68,5 +68,5 @@ async fn handle_downstream_play(
         false => Packet::Uncompressed(server_rx.read_uncompressed_packet().await?),
     };
 
-	todo!("handle client packet encryption")
+    todo!("handle client packet encryption")
 }

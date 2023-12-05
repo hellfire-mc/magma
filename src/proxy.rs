@@ -1,4 +1,8 @@
-//! Contains a basic Minecraft server for handling incoming clients.
+//! Defines the proxy server, and selection algorithms for routing.
+//!
+//! Magma is capable of proxying connections to multiple servers, by creating a proxy server for each
+//! listening address. Each proxy server can have multiple routes, which define where the proxy server
+//! should route connections to.
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -15,12 +19,20 @@ use tracing::{error, info, trace, warn};
 use crate::{
     bridge,
     config::{Proxy, SelectionAlgorithmKind},
-    io::{ProcotolWriteExt, ProtocolReadExt},
+    io::{ProcotolAsyncWriteExt, ProtocolAsyncReadExt},
     protocol::ProtocolState,
 };
 
+/// A selection algorithm for routing new connections to upstream servers.
+///
+/// Once a connection is established, Magma has to decide which upstream server to route the connection to.
+/// This is done by selecting a target from a list of targets using a selection algorithm.
+///
+/// Magma currently supports two selection algorithms:
+/// - [RoundRobinSelector]: This algorithm will select the next target in the list of targets.
+/// - [RandomSelector]: This algorithm will select a random target from the list of targets.
 pub trait SelectionAlgorithm {
-    /// Initialize the algorithm.
+    /// Initialise the selection algorithm with a list of targets it can choose from.
     fn new(targets: Vec<SocketAddr>) -> Self;
     /// The kind of algorithm this implements.
     fn kind(&self) -> SelectionAlgorithmKind;
@@ -28,6 +40,7 @@ pub trait SelectionAlgorithm {
     fn next_target(&mut self) -> SocketAddr;
 }
 
+/// A round-robin selection algorithm.
 pub struct RoundRobinSelector {
     targets: Vec<SocketAddr>,
     index: usize,
@@ -49,6 +62,7 @@ impl SelectionAlgorithm for RoundRobinSelector {
     }
 }
 
+/// A random selection algorithm.
 pub struct RandomSelector {
     targets: Vec<SocketAddr>,
 }
@@ -68,14 +82,16 @@ impl SelectionAlgorithm for RandomSelector {
     }
 }
 
-/// Spawn a proxy without blocking.
+/// Spawns a new proxy server, and returns a handle to the task.
 pub fn spawn(proxy: Proxy) -> JoinHandle<Result<()>> {
     tokio::task::spawn(async move { listen(proxy).await })
 }
 
-/// Create a listener and listen for incoming packets.
+/// Listen for new connections.
+///
+/// This function will listen for new connections, and invoke [handle_connection] for each new connection.
 #[tracing::instrument(name="proxy", skip_all, fields(addr=%proxy.listen_addr))]
-pub async fn listen(proxy: Proxy) -> Result<()> {
+async fn listen(proxy: Proxy) -> Result<()> {
     // create tcp listener
     let listener = TcpListener::bind(proxy.listen_addr).await.map_err(|err| {
         error!("Error while starting proxy server: {}", err);
@@ -96,7 +112,7 @@ pub async fn listen(proxy: Proxy) -> Result<()> {
 }
 
 /// Handle a new connection from a client.
-pub async fn handle_connection(proxy: Arc<Proxy>, mut client_stream: TcpStream) -> Result<()> {
+async fn handle_connection(proxy: Arc<Proxy>, mut client_stream: TcpStream) -> Result<()> {
     // read the first packet from the client - this should be a handshake packet
     let handshake = client_stream.read_uncompressed_packet().await?;
     if handshake.id != 0x00 {
